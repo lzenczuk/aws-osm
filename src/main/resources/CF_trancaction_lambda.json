@@ -1,0 +1,21 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources" : {
+    "downloadUrlToS3Lambda" : {
+      "Type" : "AWS::Lambda::Function",
+      "Properties" : {
+        "Code" : {
+          "S3Bucket" : "aws-osm-app",
+          "S3Key" : "app.zip"
+        },
+        "Description" : "File downloading lambda",
+        "FunctionName" : "downloadUrlToS3LambdaCF",
+        "Handler" : "com.github.lzenczuk.osm.awsosm.lambda.download.DownloadLambdaHandler::downloadUrlToS3Lambda",
+        "Role" : "arn:aws:iam::039898779445:role/lambda_basic_execution",
+        "Runtime" : "java8",
+        "MemorySize": 256,
+        "Timeout": 300
+      }
+    }
+  }
+}
