@@ -18,6 +18,7 @@ import java.io.InputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Mockito.mock;
 
 /**
  * Created by lzenczuk on 29/03/17.
@@ -28,7 +29,8 @@ public class DownloadServiceTest {
 
     @Test
     public void shouldTransferFile(){
-        DownloadService downloadService = new DownloadService();
+        DownloadProgressService downloadProgressServiceMock = mock(DownloadProgressService.class);
+        DownloadService downloadService = new DownloadService(downloadProgressServiceMock);
 
         String result = downloadService.downloadFromTo("https://download.geofabrik.de/europe/faroe-islands-latest.osm.bz2", "expapp-lambda-bucket", "faroe.osm.bz2");
         assertNull(result);
@@ -36,7 +38,8 @@ public class DownloadServiceTest {
 
     @Test
     public void nullUrl(){
-        DownloadService downloadService = new DownloadService();
+        DownloadProgressService downloadProgressServiceMock = mock(DownloadProgressService.class);
+        DownloadService downloadService = new DownloadService(downloadProgressServiceMock);
 
         String result = downloadService.downloadFromTo(null, "expapp-lambda-bucket", "faroe.osm.bz2");
         assertEquals("Null url", result);

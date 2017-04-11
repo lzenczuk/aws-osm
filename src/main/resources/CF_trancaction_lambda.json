@@ -1,21 +1,201 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Resources" : {
-    "downloadUrlToS3Lambda" : {
-      "Type" : "AWS::Lambda::Function",
-      "Properties" : {
-        "Code" : {
-          "S3Bucket" : "aws-osm-app",
-          "S3Key" : "app.zip"
+  "Resources": {
+    "downloadUrlToS3Lambda": {
+      "DependsOn": [
+        "downloadUrlProgressTable"
+      ],
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": "aws-osm-app",
+          "S3Key": "app.zip"
         },
-        "Description" : "File downloading lambda",
-        "FunctionName" : "downloadUrlToS3LambdaCF",
-        "Handler" : "com.github.lzenczuk.osm.awsosm.lambda.download.DownloadLambdaHandler::downloadUrlToS3Lambda",
-        "Role" : "arn:aws:iam::039898779445:role/lambda_basic_execution",
-        "Runtime" : "java8",
+        "Description": "File downloading lambda",
+        "FunctionName": "downloadUrlToS3Lambda",
+        "Handler": "com.github.lzenczuk.osm.awsosm.lambda.download.DownloadLambdaHandler::downloadUrlToS3Lambda",
+        "Role": "arn:aws:iam::039898779445:role/lambda_basic_execution",
+        "Runtime": "java8",
         "MemorySize": 256,
-        "Timeout": 300
+        "Timeout": 200
       }
+    },
+    "downloadUrlRequestLambda": {
+      "DependsOn": [
+        "downloadUrlProgressTable"
+      ],
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": "aws-osm-app",
+          "S3Key": "app.zip"
+        },
+        "Description": "Get downloading request lambda",
+        "FunctionName": "downloadUrlStatusLambda",
+        "Handler": "com.github.lzenczuk.osm.awsosm.lambda.download.DownloadLambdaHandler::downloadUrlStatusLambda",
+        "Role": "arn:aws:iam::039898779445:role/lambda_basic_execution",
+        "Runtime": "java8",
+        "MemorySize": 256,
+        "Timeout": 200
+      }
+    },
+    "getAllDownloadUrlRequestsLambda": {
+      "DependsOn": [
+        "downloadUrlProgressTable"
+      ],
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": "aws-osm-app",
+          "S3Key": "app.zip"
+        },
+        "Description": "Get all requests lambda",
+        "FunctionName": "getAllDownloadUrlRequestsLambda",
+        "Handler": "com.github.lzenczuk.osm.awsosm.lambda.download.DownloadLambdaHandler::getAllDownloadUrlRequestsLambda",
+        "Role": "arn:aws:iam::039898779445:role/lambda_basic_execution",
+        "Runtime": "java8",
+        "MemorySize": 256,
+        "Timeout": 200
+      }
+    },
+    "downloadUrlProgressTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "requestId",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "requestId",
+            "KeyType": "HASH"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": "5",
+          "WriteCapacityUnits": "5"
+        },
+        "TableName": "downloadUrlProgressTable"
+      }
+    },
+    "downloadUrlApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "DownloadUrl API",
+        "Description": "API used for downloading data to S3",
+        "FailOnWarnings": true
+      }
+    },
+    "downloadUrlResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "downloadUrlApi"
+        },
+        "ParentId": {
+          "Fn::GetAtt": [
+            "downloadUrlApi",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "downloads"
+      }
+    },
+    "getAllDownloadRequests": {
+      "DependsOn": "getAllDownloadUrlRequestsLambda",
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "ResourceId": {
+          "Ref": "downloadUrlResource"
+        },
+        "RestApiId": {
+          "Ref": "downloadUrlApi"
+        },
+        "Integration": {
+          "Type": "AWS",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:aws:apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "getAllDownloadUrlRequestsLambda",
+                    "Arn"
+                  ]
+                },
+                "/invocations"
+              ]
+            ]
+          },
+          "IntegrationResponses": [
+            {
+              "StatusCode": 200
+            }
+          ]
+        },
+        "RequestParameters": {
+          "method.request.querystring.name": false
+        },
+        "MethodResponses": [
+          {
+            "StatusCode": 200
+          }
+        ]
+      }
+    },
+
+    "gatewayGetAllDownloadsPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "getAllDownloadUrlRequestsLambda"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "downloadUrlApi"
+              },
+              "/*/*"
+            ]
+          ]
+        }
+      }
+    },
+
+    "apiDownloadGatewayDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "downloadUrlApi"
+        },
+        "StageName": "dev"
+      },
+      "DependsOn": [
+        "getAllDownloadRequests"
+      ]
     }
   }
 }
